@@ -169,8 +169,8 @@ class RunConfiguration:
         self.TX_POWER = 0  # Transmit power for wireless interface, 0 uses default power
         self.NEW_CC = 'US' # New iw reg country code
         self.NEW_TX_POWER = 0  # New transmit power for wireless interface
-        self.ORIG_CC = '00'  # Original iw reg country code
-        self.ORIG_TX_POWER = 0  # Original transmit power for wireless interface
+        self.ORIG_CC = ''  # Original iw reg country code
+        self.ORIG_TX_POWER = -1  # Original transmit power for wireless interface
 
         # WPA variables
         self.WPA_DISABLE = False  # Flag to skip WPA handshake capture
@@ -439,12 +439,15 @@ class RunConfiguration:
             if options.tx:
                 try:
                     self.TX_POWER = int(options.tx)
+                    if self.TX_POWER < 0:
+                        print R + ' [!]' + O + ' invalid TX power level: %s' % ( R + options.tx + W)
+                        self.exit_gracefully(1)
                 except ValueError:
-                    print R + ' [!]' + O + ' invalid TX power leve: %s' % ( R + options.tx + W)
+                    print R + ' [!]' + O + ' invalid TX power level: %s' % ( R + options.tx + W)
+                    self.exit_gracefully(1)
                 except IndexError:
                     print R + ' [!]' + O + ' no TX power level given!' + W
-                else:
-                    print GR + ' [+]' + W + ' TX power level set to %s' % (G + str(self.TX_POWER) + W)
+                    self.exit_gracefully(1)
             if options.quiet:
                 self.VERBOSE_APS = False
                 print GR + ' [+]' + W + ' list of APs during scan ' + O + 'disabled' + W
@@ -913,7 +916,6 @@ class RunEngine:
                         
     def restartNetworkManager(self):
         global RUN_CONFIG
-        #if RUN_CONFIG.DO_NOT_CHANGE_MAC: return
         if RUN_CONFIG.DO_NOT_KILL_NETWORK: return
         print GR + " [+]" + W + " restarting network-manager service"
         commands.getoutput("ifconfig eth0 down")
@@ -962,17 +964,21 @@ class RunEngine:
         #print 'done'
     
     def get_iw(self, iface):
+        self.RUN_CONFIG.ORIG_CC = ''
+        self.RUN_CONFIG.ORIG_TX_POWER = -1
         # Store original country code and tx power        
-	words = commands.getoutput("iw reg get").split()
-        cc = words[ words.index("country") + 1 ]
-        self.RUN_CONFIG.ORIG_CC = cc.translate(None, ':')
         words = commands.getoutput("iw dev " + iface + " info").split()
-        pwr = words[ words.index("txpower") + 1 ]
-        head, sep, tail = pwr.partition('.')
-        self.RUN_CONFIG.ORIG_TX_POWER = int(head)
+        if 'txpower' in words:
+            pwr = words[ words.index("txpower") + 1 ]
+            head, sep, tail = pwr.partition('.')
+            self.RUN_CONFIG.ORIG_TX_POWER = int(head)
+            words = commands.getoutput("iw reg get").split()
+            if 'country' in words:
+                cc = words[ words.index("country") + 1 ]
+                self.RUN_CONFIG.ORIG_CC = cc.translate(None, ':')
 
     def set_iw(self, iface, country_code, tx_power):
-        if self.RUN_CONFIG.TX_POWER > 0:
+        if self.RUN_CONFIG.TX_POWER > 0 and self.RUN_CONFIG.ORIG_CC != '' and self.RUN_CONFIG.ORIG_TX_POWER > -1:
             print GR + ' [+]' + W + ' setting COUNTRY CODE to %s%s%s...' % (G, country_code, W)
             print GR + ' [+]' + W + ' setting TX POWER to %s%s%s...' % (G, str(tx_power), W)
             call(['ifconfig', iface, 'down'])
@@ -1176,7 +1182,10 @@ class RunEngine:
         if self.RUN_CONFIG.TX_POWER > 0:
             print GR + '\n [+] ' + G + 'scanning' + W + ' (' + G + iface + ' - ' + RUN_CONFIG.MAC_MONITOR_MODE + ' - TXPOWER ' + str(self.RUN_CONFIG.NEW_TX_POWER) + W + '), ' + G + 'CTRL+C' + W + ' when ready.\n'
         else:
-            print GR + '\n [+] ' + G + 'scanning' + W + ' (' + G + iface + ' - ' + RUN_CONFIG.MAC_MONITOR_MODE + ' - TXPOWER ' + str(self.RUN_CONFIG.ORIG_TX_POWER) + W + '), ' + G + 'CTRL+C' + W + ' when ready.\n'
+            if self.RUN_CONFIG.ORIG_TX_POWER > -1:
+                print GR + '\n [+] ' + G + 'scanning' + W + ' (' + G + iface + ' - ' + RUN_CONFIG.MAC_MONITOR_MODE + ' - TXPOWER ' + str(self.RUN_CONFIG.ORIG_TX_POWER) + W + '), ' + G + 'CTRL+C' + W + ' when ready.\n'
+            else:
+                print GR + '\n [+] ' + G + 'scanning' + W + ' (' + G + iface + ' - ' + RUN_CONFIG.MAC_MONITOR_MODE + W + '), ' + G + 'CTRL+C' + W + ' when ready.\n'
         (targets, clients) = ([], [])
         try:
             deauth_sent = 0.0
@@ -1302,7 +1311,10 @@ class RunEngine:
                     if self.RUN_CONFIG.TX_POWER > 0:
                         print GR + '\n [+] ' + G + 'scanning' + W + ' (' + G + iface + ' - ' + RUN_CONFIG.MAC_MONITOR_MODE + ' - TXPOWER ' + str(self.RUN_CONFIG.NEW_TX_POWER) + W + '), ' + G + 'CTRL+C' + W + ' when ready.\n'
                     else:
-                        print GR + '\n [+] ' + G + 'scanning' + W + ' (' + G + iface + ' - ' + RUN_CONFIG.MAC_MONITOR_MODE + ' - TXPOWER ' + str(self.RUN_CONFIG.ORIG_TX_POWER) + W + '), ' + G + 'CTRL+C' + W + ' when ready.\n'
+                        if self.RUN_CONFIG.ORIG_TX_POWER > -1:
+                            print GR + '\n [+] ' + G + 'scanning' + W + ' (' + G + iface + ' - ' + RUN_CONFIG.MAC_MONITOR_MODE + ' - TXPOWER ' + str(self.RUN_CONFIG.ORIG_TX_POWER) + W + '), ' + G + 'CTRL+C' + W + ' when ready.\n'
+                        else:
+                            print GR + '\n [+] ' + G + 'scanning' + W + ' (' + G + iface + ' - ' + RUN_CONFIG.MAC_MONITOR_MODE + W + '), ' + G + 'CTRL+C' + W + ' when ready.\n'
                     print "   NUM ESSID                 %sCH  ENCR  POWER  WPS?  CLIENT" % (
                     'BSSID              ' if self.RUN_CONFIG.SHOW_MAC_IN_SCAN else '')
                     print '   --- --------------------  %s--  ----  -----  ----  ------' % (
