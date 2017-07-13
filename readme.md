@@ -48,9 +48,9 @@ Please see [the installation guide](https://github.com/derv82/wifite/wiki/Instal
     * aireplay-ng, 
     * packetforge-ng, and
     * aircrack-ng.
-
+    
 * Standard linux programs.
-  * iwconfig, ifconfig, which, iw
+  * iwconfig, ifconfig, which, iw, macchanger
 
 Suggested Programs
 ------------------
