@@ -1812,7 +1812,7 @@ def wps_check_targets(targets, cap_file, verbose=True):
         stdout.flush()
 
     cmd = [program_name,
-           '-f', cap_file]  # ignore Frame Check Sum errors
+           '-f', cap_file, '--ignore-fcs']  # ignore Frame Check Sum errors
     proc_walsh = Popen(cmd, stdout=PIPE, stderr=DN)
     proc_walsh.wait()
     walsh_stdout, _ = proc_walsh.communicate()
